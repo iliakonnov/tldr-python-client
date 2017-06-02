@@ -62,8 +62,6 @@ def get_terminal_size():
 # get terminal size
 rows, columns = get_terminal_size()
 
-remote = "http://raw.github.com/tldr-pages/tldr/master/pages"
-
 os_directories = {
     "linux": "linux",
     "darwin": "osx",
@@ -120,7 +118,7 @@ def have_recent_cache(command, platform):
         return False
 
 
-def get_page_for_platform(command, platform):
+def get_page_for_platform(command, platform, remote):
     data_downloaded = False
     if have_recent_cache(command, platform):
         data = load_page_from_cache(command, platform)
@@ -138,7 +136,7 @@ def get_page_for_platform(command, platform):
     return data.splitlines()
 
 
-def download_and_store_page_for_platform(command, platform):
+def download_and_store_page_for_platform(command, platform, remote):
     page_url = remote + "/" + platform + "/" + quote(command) + ".md"
     data = urlopen(page_url).read()
     store_page_to_cache(data, command, platform)
@@ -150,13 +148,13 @@ def get_platform():
             return os_directories[key]
 
 
-def get_page(command, platform=None):
+def get_page(command, remote, platform=None):
     if platform is None:
         platform = ["common", get_platform()]
 
     for _platform in platform:
         try:
-            return get_page_for_platform(command, _platform)
+            return get_page_for_platform(command, _platform, remote)
         except HTTPError as e:
             if e.code != 404:
                 raise
@@ -232,7 +230,7 @@ def output(page):
         [cprint(''.ljust(columns), *colors_of('blank')) for i in range(3)]
 
 
-def update_cache():
+def update_cache(remote):
     cache_path = os.path.join(os.path.expanduser("~"), ".tldr_cache")
     if not os.path.exists(cache_path):
         return
@@ -265,10 +263,15 @@ def main():
                         choices=['linux', 'osx', 'sunos'],
                         help="Override the operating system [linux, osx, sunos]")
 
+    parser.add_argument('-s', '--source',
+                        default="http://raw.github.com/tldr-pages/tldr/master/pages",
+                        type=str,
+                        help="Override the default page source")
+
     options, other_options = parser.parse_known_args()
 
     if options.update_cache:
-        update_cache()
+        update_cache(options.source)
         return
 
     parser.add_argument(
@@ -277,10 +280,10 @@ def main():
     options = parser.parse_args(other_options)
 
     try:
-        result = get_page('-'.join(options.command), options.os)
+        result = get_page('-'.join(options.command), options.source, options.os)
         if not result:
             for command in options.command:
-                result = get_page(command, options.os)
+                result = get_page(command, options.source, options.os)
                 if not result:
                     print((
                         "`{cmd}` documentation is not available"
